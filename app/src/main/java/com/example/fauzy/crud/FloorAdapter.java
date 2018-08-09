@@ -13,17 +13,19 @@ import java.util.List;
 public class FloorAdapter extends RecyclerView.Adapter<FloorItemHolder> {
     List<Floor> floorList = new ArrayList<>();
     Context c;
+    CRUDService cService;
 
-    public FloorAdapter(List<Floor> list, Context context){
+    public FloorAdapter(List<Floor> list, Context context,CRUDService crudService){
         this.floorList = list;
         c = context;
+        cService = crudService;
     }
 
     @NonNull
     @Override
     public FloorItemHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View itemView = LayoutInflater.from(parent.getContext()).inflate(R.layout.floor_item_layout,parent,false);
-        return new FloorItemHolder(itemView, c);
+        return new FloorItemHolder(itemView, c,cService);
     }
 
     @Override

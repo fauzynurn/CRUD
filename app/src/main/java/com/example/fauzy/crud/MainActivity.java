@@ -1,6 +1,7 @@
 package com.example.fauzy.crud;
 
 import android.content.DialogInterface;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -37,16 +38,30 @@ import java.util.List;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
-    private static String url_read =  "http://10.10.5.15:38001/api/fam/Floor";
-    private static String url_create =  "http://10.10.5.15:38001/api/fam/Floor/CreateFloor";
+    private static String url_read = "http://10.10.5.15:38001/api/fam/Floor";
+    private static String url_create = "http://10.10.5.15:38001/api/fam/Floor/CreateFloor";
     List<Floor> listFloor = new ArrayList<>();
+    CRUDService service;
     private static final String TAG = "MainActivity";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        final FloorAdapter adapter = new FloorAdapter(listFloor,this);
+        service = new CRUDService(this);
+        FloorAdapter adapter = new FloorAdapter(listFloor, this,service);
+        service.floorAdapter = adapter;
         Button addFloor = findViewById(R.id.tambah_lantai);
+        final SwipeRefreshLayout pullToRefresh = findViewById(R.id.pull_to_refresh);
+        pullToRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                service.floorAdapter.floorList.clear();
+                service.getData(listFloor);
+                service.floorAdapter.notifyDataSetChanged();
+                pullToRefresh.setRefreshing(false);
+            }
+        });
         addFloor.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -61,58 +76,11 @@ public class MainActivity extends AppCompatActivity {
                 dialogBuilder.setPositiveButton("Tambah", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int whichButton) {
                         try {
-                            RequestQueue requestQueue = Volley.newRequestQueue(MainActivity.this);
                             JSONObject jsonBody = new JSONObject();
                             jsonBody.put("FloorName", edt.getText().toString());
                             final String requestBody = jsonBody.toString();
-
-                            StringRequest stringRequest = new StringRequest(Request.Method.POST, url_create, new Response.Listener<String>() {
-                                @Override
-                                public void onResponse(String response) {
-                                    Log.i("VOLLEY", response);
-                                }
-                            }, new Response.ErrorListener() {
-                                @Override
-                                public void onErrorResponse(VolleyError error) {
-                                    Log.e("VOLLEY", error.toString());
-                                }
-                            }) {
-                                @Override
-                                public String getBodyContentType() {
-                                    return "application/json; charset=utf-8";
-                                }
-
-                                @Override
-                                public byte[] getBody() throws AuthFailureError {
-                                    try {
-                                        return requestBody == null ? null : requestBody.getBytes("utf-8");
-                                    } catch (UnsupportedEncodingException uee) {
-                                        VolleyLog.wtf("Unsupported Encoding while trying to get the bytes of %s using %s", requestBody, "utf-8");
-                                        return null;
-                                    }
-                                }
-
-                                @Override
-                                protected Response<String> parseNetworkResponse(NetworkResponse response) {
-                                    String responseString = "";
-                                    if (response != null) {
-                                        responseString = String.valueOf(response.statusCode);
-                                        // can get more details such as response.headers
-                                    }
-                                    return Response.success(responseString, HttpHeaderParser.parseCacheHeaders(response));
-                                }
-
-                                @Override
-                                public Map<String, String> getHeaders() throws AuthFailureError {
-                                    Map<String, String> params = new HashMap<String, String>();
-                                    params.put("Content-Type", "application/json");
-                                    params.put("idinternal", "027");
-                                    return params;
-                                }
-                            };
-                            requestQueue.add(stringRequest);
-                            dialog.dismiss();
-                            getData(adapter);
+                            service.postData(requestBody);
+                            service.floorAdapter.notifyItemInserted(listFloor.size());
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
@@ -127,47 +95,9 @@ public class MainActivity extends AppCompatActivity {
                 b.show();
             }
         });
-        getData(adapter);
         RecyclerView recycler = findViewById(R.id.floor_recycler);
         recycler.setLayoutManager(new LinearLayoutManager(this));
-        recycler.setAdapter(adapter);
+        recycler.setAdapter(service.floorAdapter);
+        service.getData(listFloor);
     }
-
-    public void getData(FloorAdapter adapterParam){
-        final FloorAdapter adapter = adapterParam;
-        JsonObjectRequest jArr = new JsonObjectRequest(Request.Method.GET,url_read,null, new Response.Listener<JSONObject>() {
-            @Override
-            public void onResponse(JSONObject response) {
-                try {
-                    JSONArray obj = response.getJSONArray("Result");
-                    for (int i = 0; i < obj.length(); i++) {
-                        Floor floor = new Floor();
-                        floor.setFloorId(obj.getJSONObject(i).getInt("IdFloor"));
-                        floor.setFloorName(obj.getJSONObject(i).getString("FloorName"));
-                        listFloor.add(floor);
-                        adapter.notifyItemInserted(i);
-                    }
-                    Log.i(TAG, "jumlah elemen list: "+listFloor.size());
-                }catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-        }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                Log.i(TAG, "Error: " + error.getMessage());
-            }
-        }){
-            @Override
-            public Map<String, String> getHeaders() throws AuthFailureError {
-                Map<String, String> params = new HashMap<String, String>();
-                params.put("Content-Type", "application/json");
-                params.put("idinternal", "027");
-                return params;
-            }
-        };
-        RequestQueue mRequestQueue = Volley.newRequestQueue(getApplicationContext());
-        mRequestQueue.add(jArr);
-    }
-
-    }
+}
